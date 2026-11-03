@@ -306,12 +306,6 @@ $('#vw').onclick=()=>{
  $('#map3').hidden=!use3d;$('#map').hidden=use3d;$('#dlMap').hidden=use3d;$('#vw').textContent=use3d?'Mapa plano':'Mapa 3D';
  draw(RT.on?RT.pts:(view||[]),RT.on?RT.cur:null);
  if(d)getPos(a=>{DEST=d;setRoute(a,d,true)});setTimeout(camShow,900)};
-const NATIVE=!!(window.Capacitor&&Capacitor.isNativePlatform&&Capacitor.isNativePlatform());
-const BG=NATIVE?((Capacitor.Plugins&&Capacitor.Plugins.BackgroundGeolocation)||(Capacitor.registerPlugin&&Capacitor.registerPlugin('BackgroundGeolocation'))):null;
-function bgStart(){BG.addWatcher({backgroundTitle:'Moto Control',backgroundMessage:'Registrando tu ruta y kilometraje',requestPermissions:true,stale:false,distanceFilter:5},(l,e)=>{
- if(e){if(e.code==='NOT_AUTHORIZED'){toast('Permite la ubicación todo el tiempo para esta app en los ajustes');try{BG.openSettings()}catch(x){}}else gpsErr(e);return}
- if(l)onPos({coords:{latitude:l.latitude,longitude:l.longitude,accuracy:l.accuracy,speed:(l.speed!=null&&l.speed>=0)?l.speed:null,heading:l.bearing}})
-}).then(id=>{RT.bgid=id})}
 let GLIB=null;
 $('#trT').checked=S.tra!==false;
 $('#trT').onchange=e=>{S.tra=e.target.checked;save();try{G.setLayoutProperty('traffic-l','visibility',S.tra?'visible':'none')}catch(x){}};
@@ -541,7 +535,7 @@ function onPos(p){const c=p.coords;gps(c.accuracy>60?`Buscando señal GPS, preci
  S.lims.forEach(l=>{if(v>l.kmh&&!RT.arm[l.id]){RT.arm[l.id]=1;const a={ts:now,lat:+pt[0].toFixed(6),lon:+pt[1].toFixed(6),v:Math.round(v),lim:l.kmh};S.alertas.push(a);save();warn(a)}else if(v<=l.kmh-3)RT.arm[l.id]=0});
  live()}
 function live(){const o=S.lims.some(l=>RT.v>l.kmh);$('#spd').textContent=Math.round(RT.v);$('#spd').classList.toggle('over',o);
- $('#sDist').textContent=fk(RT.dist)+' km';$('#sMax').textContent=Math.round(RT.vmax)+' km/h';head();draw(RT.pts,RT.cur);navUpdate();tick()}
+ $('#sDist').textContent=fk(RT.dist)+' km';$('#sMax').textContent=Math.round(RT.vmax)+' km/h';head();draw(RT.pts,RT.cur);navUpdate()}
 function snap(){if(RT.on){S.activa={kmIni:RT.kmIni,dist:RT.dist,t0:RT.t0,pts:RT.pts,vmax:RT.vmax,ts:Date.now()};save(true)}}
 function tick(){if(!RT.on)return;$('#sTime').textContent=hms((Date.now()-RT.t0)/1000);const n=Date.now();
  if(RT.cur&&n-(RT.lrec||0)>=3e5){RT.lrec=n;S.puntos.push({ts:n,fecha:hoy(),lat:+RT.cur[0].toFixed(6),lon:+RT.cur[1].toFixed(6),v:Math.round(RT.v),km:+(RT.kmIni+RT.dist).toFixed(1)})}
@@ -550,14 +544,14 @@ function tick(){if(!RT.on)return;$('#sTime').textContent=hms((Date.now()-RT.t0)/
 
 function gps(t,c){const el=$('#gps');el.hidden=!t;el.textContent=t||'';el.className='st '+(c||'')}
 function gpsErr(e){const m=(!/^https?:$/.test(location.protocol)?'Abre la app desde el enlace https de Claude, no desde el archivo descargado: ahí el GPS no funciona.':e&&e.code==1?'Permiso de ubicación denegado. Actívalo para este sitio en Chrome (candado junto a la dirección).':'No se pudo leer el GPS. Activa la ubicación del celular y sal a un lugar abierto.');gps(m,'bad');toast(m)}
+function webWatch(){if(!navigator.geolocation){toast('Este dispositivo no tiene GPS disponible');return}RT.wid=navigator.geolocation.watchPosition(onPos,gpsErr,{enableHighAccuracy:true,maximumAge:1000,timeout:20000})}
 function startRoute(a){follow=true;RT=a?{on:true,kmIni:a.kmIni,dist:a.dist,pts:a.pts,last:a.pts[a.pts.length-1]||null,lt:Date.now(),cur:null,v:0,vmax:a.vmax,arm:{},t0:a.t0}:{on:true,kmIni:RT.kmIni,dist:0,pts:[],last:null,cur:null,v:0,vmax:0,arm:{},t0:Date.now()};view=null;
  try{ac=ac||new(window.AudioContext||window.webkitAudioContext)()}catch(e){}
- if(BG){bgStart()}else if(!navigator.geolocation){toast('Este dispositivo no tiene GPS disponible');}
- else RT.wid=navigator.geolocation.watchPosition(onPos,gpsErr,{enableHighAccuracy:true,maximumAge:1000,timeout:20000});
  RT.timer=setInterval(tick,1000);
+ try{webWatch()}catch(e){gps('No se pudo iniciar el GPS: '+((e&&e.message)||e),'bad')}
  try{navigator.wakeLock.request('screen').then(l=>RT.wl=l).catch(()=>{})}catch(e){}
  $('#go').textContent='Terminar ruta';$('#go').classList.add('stop');gps('Buscando señal GPS...','warn');live();tick()}
-function endRoute(){if(BG&&RT.bgid!=null)BG.removeWatcher({id:RT.bgid});navigator.geolocation&&RT.wid!=null&&navigator.geolocation.clearWatch(RT.wid);clearInterval(RT.timer);try{RT.wl&&RT.wl.release()}catch(e){}
+function endRoute(){navigator.geolocation&&RT.wid!=null&&navigator.geolocation.clearWatch(RT.wid);clearInterval(RT.timer);try{RT.wl&&RT.wl.release()}catch(e){}
  if(RT.pts.length>1||RT.dist>0){const kmFin=RT.kmIni+RT.dist;S.rutas.push({id:Date.now(),fecha:hoy(),ini:RT.t0,fin:Date.now(),kmIni:RT.kmIni,kmFin,dist:RT.dist,vmax:RT.vmax,pts:RT.pts});S.moto.odo=kmFin;save();view=RT.pts;toast(`Ruta guardada: ${fk(RT.dist)} km`)}
  else toast('Ruta cancelada: no se registró recorrido');
  S.activa=null;save();RT.on=false;RT.v=0;$('#spd').textContent='0';$('#spd').classList.remove('over');$('#go').textContent='Iniciar ruta';$('#go').classList.remove('stop');gps('');head();draw(view||[],null)}
