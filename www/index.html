@@ -93,6 +93,34 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
 .acts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .acts .btn{margin:0}
 @media (prefers-reduced-motion:no-preference){.alert{animation:pop .25s ease-out}@keyframes pop{from{transform:translateY(-14px);opacity:0}}}
+
+.cal{padding:12px}
+.calh{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.calh b{font:700 21px 'Barlow Condensed','Arial Narrow',sans-serif}
+.calh .cbtn{width:52px;min-height:44px;margin:0;padding:0;font-size:28px;line-height:1}
+.calw,.calg{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.calw span{text-align:center;font-weight:600;color:var(--mute);font-size:13px;padding:2px 0}
+.cx{min-height:52px}
+.cd{min-height:52px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:2px 0;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:8px;font-family:inherit;cursor:pointer}
+.cd b{font-size:16px;line-height:1.1}
+.cd small{font-size:11px;line-height:1.1;min-height:12px;color:var(--mute)}
+.cd.has{border-color:var(--blue)}
+.cd.has small{color:var(--blue);font-weight:700}
+.cd.hoy{box-shadow:0 0 0 2px var(--yellow)}
+.cd.sel{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.cd.sel small,.cd.sel.has small{color:var(--bg)}
+.cd:focus-visible{outline:3px solid var(--yellow);outline-offset:2px}
+.calf{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px;color:var(--mute);font-size:14px}
+.dh b.d1{text-transform:none}
+.dsec{font:700 16px Barlow,system-ui,sans-serif;margin:14px 0 2px}
+.ln small{display:block;color:var(--mute);font-size:13px}
+.lnk.bad{color:var(--bad)}
+.dh .big{white-space:nowrap;flex-shrink:0}
+.ln.rt{flex-direction:column;align-items:stretch;gap:6px}
+.rb{display:flex;gap:8px}
+.rb .lnk{flex:1;min-height:44px;border:1px solid var(--line);border-radius:8px;text-decoration:none;padding:0 8px}
+.rb .lnk.bad{border-color:var(--bad)}
+.btn.dng{background:transparent;color:var(--bad);border:1px solid var(--bad);margin-top:14px;min-height:46px;font-size:18px}
 </style></head>
 <body>
 <main>
@@ -122,7 +150,15 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
  <div id="eList"></div>
 </section>
 
-<section id="t-diario" hidden><h2>Diario</h2><div id="dList"></div></section>
+<section id="t-diario" hidden><h2>Diario</h2>
+ <div class="card cal">
+  <div class="calh"><button class="btn ghost cbtn" id="cPrev" aria-label="Mes anterior">‹</button><b id="cTit" aria-live="polite"></b><button class="btn ghost cbtn" id="cNext" aria-label="Mes siguiente">›</button></div>
+  <div class="calw" aria-hidden="true"><span>L</span><span>M</span><span>M</span><span>J</span><span>V</span><span>S</span><span>D</span></div>
+  <div class="calg" id="cGrid"></div>
+  <div class="calf"><span id="cMes"></span><button class="lnk" id="cHoy">Ir a hoy</button></div>
+ </div>
+ <div id="dDia" aria-live="polite"></div>
+</section>
 
 <section id="t-reg" hidden>
  <div class="card"><h2>Nuevo registro</h2>
@@ -180,7 +216,8 @@ dialog::backdrop{background:rgba(0,0,0,.55)}
  <div class="acts"><button class="btn ghost" id="syNo">Cancelar</button><button class="btn" id="sySi">Reemplazar</button></div>
 </dialog>
 
-<dialog id="dlgDel"><h2>Borrar recorrido</h2>
+<dialog id="dlgDel"><h2 id="dlTit">Borrar</h2>
+ <p class="note" id="dMsg" style="margin:0 0 10px"></p>
  <label>Escribe la clave para borrarlo<input type="password" inputmode="numeric" id="dPw" autocomplete="off"></label>
  <p class="st bad" id="dErr"></p>
  <div class="acts"><button class="btn ghost" id="dlNo">Cancelar</button><button class="btn" id="dlOk" style="background:var(--bad)">Borrar</button></div>
@@ -306,6 +343,14 @@ $('#vw').onclick=()=>{
  $('#map3').hidden=!use3d;$('#map').hidden=use3d;$('#dlMap').hidden=use3d;$('#vw').textContent=use3d?'Mapa plano':'Mapa 3D';
  draw(RT.on?RT.pts:(view||[]),RT.on?RT.cur:null);
  if(d)getPos(a=>{DEST=d;setRoute(a,d,true)});setTimeout(camShow,900)};
+const NATIVE=!!(window.Capacitor&&Capacitor.isNativePlatform&&Capacitor.isNativePlatform());
+const BG=NATIVE?((Capacitor.Plugins&&Capacitor.Plugins.BackgroundGeolocation)||(Capacitor.registerPlugin&&Capacitor.registerPlugin('BackgroundGeolocation'))):null;
+function bgStart(){let p;
+ try{p=BG.addWatcher({backgroundTitle:'Moto Control',backgroundMessage:'Registrando tu ruta y kilometraje',requestPermissions:true,stale:false,distanceFilter:5},(l,e)=>{
+  if(e){if(e.code==='NOT_AUTHORIZED'){toast('Permite la ubicación todo el tiempo para esta app en los ajustes');try{BG.openSettings()}catch(x){}}else gpsErr(e);return}
+  if(l)onPos({coords:{latitude:l.latitude,longitude:l.longitude,accuracy:l.accuracy,speed:(l.speed!=null&&l.speed>=0)?l.speed:null,heading:l.bearing}})
+ })}catch(e){return webWatch()}
+ if(p&&p.then)p.then(id=>{RT.bgid=id}).catch(()=>{if(RT.on&&RT.wid==null){try{webWatch()}catch(x){}}})}
 let GLIB=null;
 $('#trT').checked=S.tra!==false;
 $('#trT').onchange=e=>{S.tra=e.target.checked;save();try{G.setLayoutProperty('traffic-l','visibility',S.tra?'visible':'none')}catch(x){}};
@@ -535,7 +580,7 @@ function onPos(p){const c=p.coords;gps(c.accuracy>60?`Buscando señal GPS, preci
  S.lims.forEach(l=>{if(v>l.kmh&&!RT.arm[l.id]){RT.arm[l.id]=1;const a={ts:now,lat:+pt[0].toFixed(6),lon:+pt[1].toFixed(6),v:Math.round(v),lim:l.kmh};S.alertas.push(a);save();warn(a)}else if(v<=l.kmh-3)RT.arm[l.id]=0});
  live()}
 function live(){const o=S.lims.some(l=>RT.v>l.kmh);$('#spd').textContent=Math.round(RT.v);$('#spd').classList.toggle('over',o);
- $('#sDist').textContent=fk(RT.dist)+' km';$('#sMax').textContent=Math.round(RT.vmax)+' km/h';head();draw(RT.pts,RT.cur);navUpdate()}
+ $('#sDist').textContent=fk(RT.dist)+' km';$('#sMax').textContent=Math.round(RT.vmax)+' km/h';head();draw(RT.pts,RT.cur);navUpdate();tick()}
 function snap(){if(RT.on){S.activa={kmIni:RT.kmIni,dist:RT.dist,t0:RT.t0,pts:RT.pts,vmax:RT.vmax,ts:Date.now()};save(true)}}
 function tick(){if(!RT.on)return;$('#sTime').textContent=hms((Date.now()-RT.t0)/1000);const n=Date.now();
  if(RT.cur&&n-(RT.lrec||0)>=3e5){RT.lrec=n;S.puntos.push({ts:n,fecha:hoy(),lat:+RT.cur[0].toFixed(6),lon:+RT.cur[1].toFixed(6),v:Math.round(RT.v),km:+(RT.kmIni+RT.dist).toFixed(1)})}
@@ -548,10 +593,10 @@ function webWatch(){if(!navigator.geolocation){toast('Este dispositivo no tiene 
 function startRoute(a){follow=true;RT=a?{on:true,kmIni:a.kmIni,dist:a.dist,pts:a.pts,last:a.pts[a.pts.length-1]||null,lt:Date.now(),cur:null,v:0,vmax:a.vmax,arm:{},t0:a.t0}:{on:true,kmIni:RT.kmIni,dist:0,pts:[],last:null,cur:null,v:0,vmax:0,arm:{},t0:Date.now()};view=null;
  try{ac=ac||new(window.AudioContext||window.webkitAudioContext)()}catch(e){}
  RT.timer=setInterval(tick,1000);
- try{webWatch()}catch(e){gps('No se pudo iniciar el GPS: '+((e&&e.message)||e),'bad')}
+ try{if(BG)bgStart();else webWatch()}catch(e){try{webWatch()}catch(x){gps('No se pudo iniciar el GPS: '+((x&&x.message)||x),'bad')}}
  try{navigator.wakeLock.request('screen').then(l=>RT.wl=l).catch(()=>{})}catch(e){}
  $('#go').textContent='Terminar ruta';$('#go').classList.add('stop');gps('Buscando señal GPS...','warn');live();tick()}
-function endRoute(){navigator.geolocation&&RT.wid!=null&&navigator.geolocation.clearWatch(RT.wid);clearInterval(RT.timer);try{RT.wl&&RT.wl.release()}catch(e){}
+function endRoute(){try{if(BG&&RT.bgid!=null)BG.removeWatcher({id:RT.bgid})}catch(e){}navigator.geolocation&&RT.wid!=null&&navigator.geolocation.clearWatch(RT.wid);clearInterval(RT.timer);try{RT.wl&&RT.wl.release()}catch(e){}
  if(RT.pts.length>1||RT.dist>0){const kmFin=RT.kmIni+RT.dist;S.rutas.push({id:Date.now(),fecha:hoy(),ini:RT.t0,fin:Date.now(),kmIni:RT.kmIni,kmFin,dist:RT.dist,vmax:RT.vmax,pts:RT.pts});S.moto.odo=kmFin;save();view=RT.pts;toast(`Ruta guardada: ${fk(RT.dist)} km`)}
  else toast('Ruta cancelada: no se registró recorrido');
  S.activa=null;save();RT.on=false;RT.v=0;$('#spd').textContent='0';$('#spd').classList.remove('over');$('#go').textContent='Iniciar ruta';$('#go').classList.remove('stop');gps('');head();draw(view||[],null)}
@@ -560,17 +605,47 @@ $('#go').onclick=()=>{if(RT.on)return endRoute();$('#dKm').value=S.moto.odo||'';
 $('#dNo').onclick=()=>$('#dlg').close();
 $('#dOk').onclick=()=>{const v=parseFloat($('#dKm').value);if(isNaN(v)||v<0){$('#dKm').focus();return}RT.kmIni=v;S.moto.odo=v;save();$('#dlg').close();startRoute()};
 
-function renderDiario(){const by={},add=(k,t,x)=>(by[k]=by[k]||{r:[],g:[],p:[]})[t].push(x);S.rutas.forEach(r=>add(r.fecha,'r',r));S.reg.forEach(x=>add(x.fecha,'g',x));S.puntos.forEach(x=>add(x.fecha,'p',x));
- const ks=Object.keys(by).sort().reverse();
- $('#dList').innerHTML=ks.length?ks.map(k=>{const d=by[k],tot=d.r.reduce((a,r)=>a+r.dist,0);
-  return`<div class="card"><div class="dh"><b>${fdate(k,{weekday:'long',day:'numeric',month:'long'})}</b><span class="big">${fk(tot)} km</span></div>`+
-  d.r.map(r=>`<div class="ln"><span>${new Date(r.ini).toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'})}, ${fk(r.kmIni)} a ${fk(r.kmFin)} km, máx. ${Math.round(r.vmax)} km/h</span><span><button class="lnk" data-v="${r.id}">Ver</button><button class="lnk" data-x="${r.id}">Borrar</button></span></div>`).join('')+
-  d.g.map(x=>`<div class="ln sub"><span>${esc(x.tipo)}${x.det?', '+esc(x.det):''}</span><span>${x.valor?fm(x.valor):''}</span></div>`).join('')+(d.p.length?`<details><summary>Registro cada 5 min (${d.p.length})</summary>`+d.p.map(x=>`<div class="ln sub"><span>${new Date(x.ts).toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'})}, ${x.v} km/h, ${fk(x.km)} km</span><a class="lnk" href="https://www.google.com/maps?q=${x.lat},${x.lon}" target="_blank" rel="noopener">${x.lat}, ${x.lon}</a></div>`).join('')+'</details>':'')+'</div>'}).join('')
-  :'<p class="empty">Aún no hay rutas. Inicia una ruta y aparecerá aquí, día por día.</p>'}
-let delId=null;
-$('#dList').onclick=e=>{const d=e.target.dataset;if(d.x){delId=d.x;$('#dPw').value='';$('#dErr').textContent='';$('#dlgDel').showModal();return}const id=d.v;if(!id)return;const r=S.rutas.find(x=>x.id==id);if(r){view=r.pts;show('ruta')}};
-$('#dlNo').onclick=()=>$('#dlgDel').close();
-$('#dlOk').onclick=()=>{if($('#dPw').value!=='2492'){$('#dErr').textContent='Clave incorrecta';$('#dPw').value='';$('#dPw').focus();return}S.rutas=S.rutas.filter(x=>x.id!=delId);save();$('#dlgDel').close();renderDiario();toast('Recorrido borrado')};
+const pad2=n=>String(n).padStart(2,'0');
+const dk=t=>{const d=new Date(t);return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate())};
+const hm=t=>new Date(t).toLocaleTimeString('es-CO',{hour:'2-digit',minute:'2-digit'});
+const cap=s=>s.charAt(0).toUpperCase()+s.slice(1);
+const fmin=m=>m<60?`${m} min`:(m%60?`${Math.floor(m/60)} h ${m%60} min`:`${m/60} h`);
+let cal=null,diaSel=null,delAct=null;
+function diaDatos(){const by={},A=(k,t,x)=>{if(!k)return;(by[k]=by[k]||{r:[],g:[],p:[],a:[],km:0})[t].push(x)};
+ S.rutas.forEach(r=>A(r.fecha,'r',r));S.reg.forEach(x=>A(x.fecha,'g',x));S.puntos.forEach(x=>A(x.fecha,'p',x));S.alertas.forEach(x=>A(dk(x.ts),'a',x));
+ Object.values(by).forEach(d=>{d.km=d.r.reduce((a,r)=>a+(+r.dist||0),0)});return by}
+function renderDiario(){const by=diaDatos(),t0=hoy();
+ if(!diaSel)diaSel=t0;
+ if(!cal){const p=diaSel.split('-');cal={y:+p[0],m:+p[1]-1}}
+ const first=new Date(cal.y,cal.m,1),off=(first.getDay()+6)%7,nd=new Date(cal.y,cal.m+1,0).getDate(),mes=first.toLocaleDateString('es-CO',{month:'long'});
+ let h='',mk=0,md=0;for(let i=0;i<off;i++)h+='<span class="cx"></span>';
+ for(let d=1;d<=nd;d++){const k=cal.y+'-'+pad2(cal.m+1)+'-'+pad2(d),x=by[k],km=x?x.km:0,has=!!x;if(km>0){mk+=km;md++}
+  const lab=`${d} de ${mes}`+(km>0?`, ${fk(km)} km`:has?', con datos':', sin datos')+(k==t0?', hoy':'');
+  h+=`<button class="cd${has?' has':''}${k==diaSel?' sel':''}${k==t0?' hoy':''}" data-k="${k}" aria-label="${lab}" aria-pressed="${k==diaSel}"${k==t0?' aria-current="date"':''}><b>${d}</b><small>${km>0?(km<100?fk(km):Math.round(km))+' km':has?'•':''}</small></button>`}
+ $('#cGrid').innerHTML=h;$('#cTit').textContent=cap(first.toLocaleDateString('es-CO',{month:'long',year:'numeric'}));
+ $('#cMes').textContent=md?`${fk(mk)} km en ${pl(md,'día','días')} con recorridos`:'Sin recorridos este mes';
+ renderDia(by)}
+function renderDia(by){by=by||diaDatos();const d=by[diaSel]||{r:[],g:[],p:[],a:[],km:0},tot=d.r.length+d.g.length+d.p.length+d.a.length;
+ let h=`<div class="card"><div class="dh"><b class="d1">${esc(cap(fdate(diaSel,{weekday:'long',day:'numeric',month:'long',year:'numeric'})))}</b><span class="big">${fk(d.km)} km</span></div>`;
+ if(!tot)h+='<p class="empty">No hay datos este día.</p>';
+ if(d.r.length)h+='<h3 class="dsec">Recorridos</h3>'+d.r.sort((a,b)=>a.ini-b.ini).map(r=>{const mn=Math.max(1,Math.round((r.fin-r.ini)/6e4));
+  return`<div class="ln rt"><span><b>${fk(r.dist)} km</b> · ${hm(r.ini)} a ${hm(r.fin)}<small>${fmin(mn)} · Odómetro ${fk(r.kmIni)} a ${fk(r.kmFin)} km · máx. ${Math.round(r.vmax)} km/h</small></span><span class="rb"><button class="lnk" data-v="${r.id}">Ver en el mapa</button><button class="lnk bad" data-x="${r.id}" aria-label="Borrar el recorrido de las ${hm(r.ini)}">🗑️ Borrar</button></span></div>`}).join('');
+ if(d.g.length)h+='<h3 class="dsec">Gasolina y mantenimiento</h3>'+d.g.map(x=>`<div class="ln"><span>${esc(x.tipo)}${x.det?', '+esc(x.det):''}<small>${x.km?fk(x.km)+' km':''}${x.litros?(x.km?' · ':'')+fk(x.litros)+' L':''}</small></span><span>${x.valor?fm(x.valor):''}</span></div>`).join('');
+ if(d.a.length)h+='<h3 class="dsec">Avisos de velocidad</h3>'+d.a.sort((a,b)=>a.ts-b.ts).map(x=>`<div class="ln"><span>${hm(x.ts)}, ${x.v} km/h<small>Límite ${x.lim} km/h</small></span><a class="lnk" href="https://www.google.com/maps?q=${x.lat},${x.lon}" target="_blank" rel="noopener">Ver lugar</a></div>`).join('');
+ if(d.p.length)h+=`<details><summary>Registro cada 5 min (${d.p.length})</summary>`+d.p.sort((a,b)=>a.ts-b.ts).map(x=>`<div class="ln"><span>${hm(x.ts)}, ${x.v} km/h, ${fk(x.km)} km</span><a class="lnk" href="https://www.google.com/maps?q=${x.lat},${x.lon}" target="_blank" rel="noopener">${x.lat}, ${x.lon}</a></div>`).join('')+'</details>';
+ if(d.r.length||d.p.length||d.a.length)h+='<button class="btn dng" id="dDel">🗑️ Borrar los datos de este día</button>';
+ $('#dDia').innerHTML=h+'</div>'}
+function pedirClave(tit,msg,fn){delAct=fn;$('#dlTit').textContent=tit;$('#dMsg').textContent=msg;$('#dPw').value='';$('#dErr').textContent='';$('#dlgDel').showModal();setTimeout(()=>$('#dPw').focus(),60)}
+$('#cPrev').onclick=()=>{cal.m--;if(cal.m<0){cal.m=11;cal.y--}renderDiario()};
+$('#cNext').onclick=()=>{cal.m++;if(cal.m>11){cal.m=0;cal.y++}renderDiario()};
+$('#cHoy').onclick=()=>{diaSel=hoy();const p=diaSel.split('-');cal={y:+p[0],m:+p[1]-1};renderDiario()};
+$('#cGrid').onclick=e=>{const b=e.target.closest('.cd');if(!b)return;diaSel=b.dataset.k;renderDiario();const s=$('#cGrid .sel');if(s)s.focus({preventScroll:true})};
+$('#dDia').onclick=e=>{const b=e.target.closest('button');if(!b)return;const d=b.dataset;
+ if(d.v){const r=S.rutas.find(x=>x.id==d.v);if(r){view=r.pts;show('ruta')}return}
+ if(d.x){const id=d.x;pedirClave('Borrar recorrido','Se borrará este recorrido del diario.',()=>{S.rutas=S.rutas.filter(x=>x.id!=id);toast('Recorrido borrado')});return}
+ if(b.id=='dDel'){const k=diaSel;pedirClave('Borrar los datos del día',`Se borrarán los recorridos, los avisos de velocidad y el registro de 5 min del ${fdate(k)}. La gasolina y el mantenimiento se borran en la pestaña Registro.`,()=>{S.rutas=S.rutas.filter(x=>x.fecha!=k);S.puntos=S.puntos.filter(x=>x.fecha!=k);S.alertas=S.alertas.filter(x=>dk(x.ts)!=k);toast('Datos del día borrados')})}};
+$('#dlNo').onclick=()=>{delAct=null;$('#dlgDel').close()};
+$('#dlOk').onclick=()=>{if($('#dPw').value!=='2492'){$('#dErr').textContent='Clave incorrecta';$('#dPw').value='';$('#dPw').focus();return}const f=delAct;delAct=null;$('#dlgDel').close();if(f){f();save();renderDiario()}};
 $('#dPw').onkeydown=e=>{if(e.key=='Enter')$('#dlOk').click()};
 
 const T={'Gasolina':0,'Cambio de aceite':'Aceite usado (opcional)','Cambio de pieza':'Pieza o repuesto','Mantenimiento':'Qué se hizo'};
