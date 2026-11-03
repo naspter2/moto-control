@@ -3,6 +3,8 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -24,3 +26,9 @@ jobs:
         with:
           name: moto-control-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Publicar el APK en Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk moto-control.apk
+          gh release create "apk-${{ github.run_number }}" moto-control.apk --title "Moto Control APK ${{ github.run_number }}" --notes "APK listo para instalar"
