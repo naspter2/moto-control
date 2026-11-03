@@ -1,0 +1,11 @@
+{
+  "appId": "com.motocontrol.app",
+  "appName": "Moto Control",
+  "webDir": "www",
+  "android": {
+    "useLegacyBridge": true
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}
